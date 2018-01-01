@@ -1,11 +1,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
 ; Press 1,2,3,4 to malloc each pointer
-; (the key function has logic to stop you from mallocing the same one if it is not free
+; (the key function has logic to stop you from mallocing
+; the same one if it is not free)
 ;
 ;
 ; Press q,w,e,r to free each pointer
-; (the key functino has logic to stop you from freeing a free pointer)
+; (the key function has logic to stop you from freeing a free pointer)
 ;
 ;
 ; Lots of excess code in this file
@@ -222,7 +223,7 @@ HandleKeys_done:
 
     if_1:
         TEST [pointer_one], [pointer_one]
-        JNZ HandleKeys_done
+        JNZ HandleKeys_next
 
         PUSH pointer_one
         PUSH POINTER_ONE_SIZE
@@ -231,7 +232,7 @@ HandleKeys_done:
         JMP HandleKeys_next
     if_2:
         TEST [pointer_two], [pointer_two]
-        JNZ HandleKeys_done 
+        JNZ HandleKeys_next
 
         PUSH pointer_two
         PUSH POINTER_TWO_SIZE
@@ -240,7 +241,7 @@ HandleKeys_done:
         JMP HandleKeys_next
     if_3:
         TEST [pointer_three], [pointer_three]
-        JNZ HandleKeys_done
+        JNZ HandleKeys_next
 
         PUSH pointer_three
         PUSH POINTER_THREE_SIZE
@@ -249,7 +250,7 @@ HandleKeys_done:
         JMP HandleKeys_next
     if_4:
         TEST [pointer_four], [pointer_four]
-        JNZ HandleKeys_done
+        JNZ HandleKeys_next
 
         PUSH pointer_four
         PUSH POINTER_FOUR_SIZE
@@ -257,18 +258,30 @@ HandleKeys_done:
 
         JMP HandleKeys_next
     if_q:
+        TEST [pointer_one], [pointer_one]
+        JZ HandleKeys_next
+
         PUSH pointer_one
         CALL _PrintFree
         JMP HandleKeys_next
     if_w:
+        TEST [pointer_two], [pointer_two]
+        JNZ HandleKeys_next
+
         PUSH pointer_two
         CALL _PrintFree
         JMP HandleKeys_next
     if_e:
+        TEST [pointer_three], [pointer_three]
+        JNZ HandleKeys_next
+
         PUSH pointer_three
         CALL _PrintFree
         JMP HandleKeys_next
     if_r:
+        TEST [pointer_four], [pointer_four]
+        JNZ HandleKeys_next
+
         PUSH pointer_four
         CALL _PrintFree
         JMP HandleKeys_next

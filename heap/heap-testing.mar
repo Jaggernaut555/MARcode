@@ -255,11 +255,6 @@ HandleKeys_done:
         PUSH POINTER_FOUR_SIZE
         CALL _PrintMalloc
 
-        MOV B, test_data_two
-        MOV A, [pointer_four]
-        MOV C, 1
-        CALL _Memcpy
-
         JMP HandleKeys_next
     if_q:
         PUSH pointer_one

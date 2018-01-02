@@ -9,20 +9,25 @@
 ;   Please don't forget to put the 
 ;   heap label at end of file
 ;
+;   Only use:
+;       _Malloc
+;       _Free
+;       __InitializeAllocator (once)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;;;; heap code start
 
 ; This MUST be called for heap to work
 ; It only needs to be called once
 ; Initialize allocator
-; Set heap_total_available
+; Set ____heap_total_available
 __InitializeAllocator:
     MOV A, 0xF000   ; last address heap can try to occupy
     SUB A, heap
-    MOV [heap_total_available], A
+    MOV [____heap_total_available], A
     RET
-heap_total_available: DW 0  ; This data is needed for the heap
-heap_size: DW 0             ; It will not work if removed
+____heap_total_available: DW 0  ; This data is needed for the heap
+____heap_size: DW 0             ; It will not work if removed
 ;__InitializeAllocator end
 
 ; Malloc(void *ptr, int size)
@@ -54,67 +59,70 @@ _Malloc:
 
     MOV D, [BP+2]   ; A is the size we want
     TEST D,D
-    JZ Malloc_search_not_found      ; Don't waste time malloc(ptr,0)
+    JZ ___Malloc_search_not_found      ; Don't waste time malloc(ptr,0)
 
-    ADD D, 1        ; We need to have add room for the control word
+    ADD D, 2        ; We need to have add room for the control word and the range word
 
-    CMP [heap_total_available], D
-    JC Malloc_search_not_found      ; Fail if heap total < requested size
+    CMP [____heap_total_available], D
+    JC ___Malloc_search_not_found      ; Fail if heap total < requested size
 
-    MOV C, [heap_size]              ; Get current total allocated
+    MOV C, [____heap_size]              ; Get current total allocated
     ADD C, D                        ; Add the new size we want
-    CMP [heap_total_available],C    ; Check if the new total is more than is available
-    JC Malloc_search_not_found      ; Fail if taking up too much memory
+    JC ___Malloc_search_not_found      ; fail if new size + ____heap_size > 0xFFFF
+    CMP [____heap_total_available],C    ; Check if the new total is more than is available
+    JC ___Malloc_search_not_found      ; Fail if taking up too much memory
 
     MOV X, heap     ; X is the heap pointer
     MOV Y, [BP+3]   ; Y is the ptr
 
-Malloc_search_loop:
-    MOV B, [X]      ; Get control word at X
-    AND B, 0x7FFF   ; get the amount of allocated space in current address and move to the next one
+___Malloc_search_loop:
+    MOV B, [X+1]      ; Get range word at X+1
+    ;AND B, 0xFFFF   ; get the amount of allocated space in current address and move to the next one
 
-    TEST [X], 0x8000  ; if X address is allocated, move on to the next available address
-    JNZ Malloc_search_loop_continue
+    TEST [X], [X]  ; if X address is allocated, move on to the next available address
+    JNZ ______Malloc_search_loop_continue
 
     MOV A, X
     CALL __CombineEmptyBlocks
 
+    MOV B, [X+1]    ; Use out possible newly available
+
     TEST B, B       ; if size hasn't been set, we're good to go
-    JZ Malloc_search_found_size_zero
+    JZ ___Malloc_search_found_size_zero
 
     CMP D, B        ; if Our size is less than or equal to the space available, take the spot
-    JLE  Malloc_search_found_existing
+    JLE  ___Malloc_search_found_existing
 
     ADD X, B
 
-    JMP Malloc_search_loop_continue
+    JMP ______Malloc_search_loop_continue
 
-Malloc_search_loop_continue:
-    ADD X, B
-    JMP Malloc_search_loop
+______Malloc_search_loop_continue:
+    ADD X, B        ; increment by range word
+    JMP ___Malloc_search_loop
 
-Malloc_search_found_size_zero:
-    ADD [heap_size], D              ; ADD new block our heap size
+___Malloc_search_found_size_zero:
+    ADD [____heap_size], D              ; ADD new block our heap size
 
-    JMP Malloc_search_found
-Malloc_search_found_existing:
+    JMP ___Malloc_search_found
+___Malloc_search_found_existing:
     SUB B, D                        ; Remove our current size from the existing free block
     MOV A, X                        ; Copy address of current control word
     ADD A, D                        ; Mov current size forward to create a new block control word
     MOV [A], B
 
-Malloc_search_found:
-    OR D, 0x8000                    ; OR the size with the allocated_bit to store the control word
-    MOV [X], D                      ; Set the control word
-    ADD X,1                         ; Do not send back the allocator control word
+___Malloc_search_found:
+    MOV [X+1], D                    ; Set the range word
+    MOV [X], 1                      ; Set the control word
+    ADD X,2                         ; Do not send back the allocator control word or the range word
     MOV [Y], X                      ; Send back the allocated memory address
 
-    JMP Malloc_done
+    JMP ___Malloc_done
 
-Malloc_search_not_found:
+___Malloc_search_not_found:
     MOV [Y], 0      ; We could not alloc, sad day
 
-Malloc_done:
+___Malloc_done:
     POP Y
     POP X
     POP D
@@ -137,6 +145,8 @@ Malloc_done:
 _Free:
     PUSH BP
     MOV BP, SP
+    PUSH A
+    PUSH B
     PUSH C
     PUSH Y
 
@@ -144,22 +154,31 @@ _Free:
     MOV X, [Y]      ; X is the location Y is pointing at
 
     TEST X,X
-    JZ Free_done    ; if X is 0 we don't need to do anything
+    JZ ___Free_done    ; if X is 0 we don't need to do anything
 
     CMP X, heap    ; if X is less than the heap starting point, this is not ours
-    JLE Free_done
+    JLE ___Free_done
 
-    MOV C, [heap_size]
-    ADD C, heap     ; add heap address and heap_size to get to the end of the heap
+    MOV C, [____heap_size]
+    ADD C, heap     ; add heap address and ____heap_size to get to the end of the heap
     CMP C,X        ; if X is greater than the heap ending point, this is not ours
-    JC  Free_done
+    JC  ___Free_done
     
-    AND [X-1], 0x7FFF  ; Unset the allocated_bit of the control word
+    MOV [X-2], 0        ; Unset the control word
+
+    MOV A, [X]          ; Set the data in this block
+    MOV B, 0            ; Fill it with zeros, except for the control word
+    MOV C, [X-1]        ; Go as far as the range specified in range word - 2
+    SUB C, 2
+    CALL __Memset
+
     MOV [Y], 0      ; Set pointer to nil
 
-Free_done:
+___Free_done:
     POP Y
     POP C
+    POP B
+    POP A
     POP BP
     RET 1
 ;_Free end
@@ -167,28 +186,63 @@ Free_done:
 ; Combines empty blocks for found during malloc
 __CombineEmptyBlocks:
     PUSH C
+    PUSH D
 
     MOV C, A
 
-CombineEmptyBlocks_loop:
-    TEST [C], 0xFFFF        ; Check if the current control bit is zero
-    JZ CombineEmptyBlocks_zero
+___CombineEmptyBlocks_loop:
+    TEST [C], [C]        ; If the current control block is allocated, stop if so
+    JNZ ___CombineEmptyBlocks_done
 
-    TEST [C], 0x8000        ; If the current control block is allocated, stop
-    JNZ CombineEmptyBlocks_done
+    TEST [C+1], [C+1]           ; Check if the current range word is zero
+    JZ ___CombineEmptyBlocks_zero
 
-    ADD [A], [C]            ; Current control bit is free to add it's size onto A
+    MOV D, C                    ; Hold on to current control word
+    ADD D, [C+1]                ; Get to next control word
+    MOV [C], 0                    ; Clear this control word
 
-    ADD C, [C]              ; Move to next control bit
-    JMP CombineEmptyBlocks_loop
+    ADD [A+1], [C+1]            ; Current block is free to add it's size onto A
 
-CombineEmptyBlocks_zero:
-    MOV [A], 0              ; If we came across a completely unset control bit
-                            ; we must be at the end of the allocated section
-CombineEmptyBlocks_done:    ; of the heap
+    MOV [C+1], 0                ; Clear this block's size
+    MOV C,D                     ; Move on to next control word
+    JMP ___CombineEmptyBlocks_loop
+
+___CombineEmptyBlocks_zero:
+    SUB [____heap_size], [A+1]      ; We are at the end, this is no longer part of the heap
+    MOV [A], 0                  ; If we came across a completely unset control bit
+    MOV [A+1],0                 ; we must be at the end of the allocated section
+___CombineEmptyBlocks_done:     ; of the heap
+    POP D
     POP C
     RET
 ;__CombineEmptyBlocks end
+
+; void * memset ( void * ptr, int value, size_t num );
+;
+;   MOV A, dest
+;   MOV B [value]
+;   MOV B [size]
+;   CALL __Memset
+;
+__Memset:
+    PUSH A
+    PUSH B
+    PUSH C
+
+    ADD C, A
+___memset_loop:
+    MOV [A], B
+    ADD A, 1
+    CMP A, C
+    JL ___memset_loop
+
+    POP C
+    POP B
+    POP A
+    RET
+;__Memset end
+
+;;;;; heap code end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;

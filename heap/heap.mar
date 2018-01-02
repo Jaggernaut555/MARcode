@@ -6,9 +6,8 @@
 ;   Code to test the heap is available in
 ;   heap-testing.mar
 ;
-;   Please don't forget to put the 
-;   label at end of file
-;
+;   Copy and paste this whole file to the end
+;   of your code
 ;
 ;   Usable functions:
 ;       _Malloc
@@ -17,6 +16,12 @@
 ;       _Calloc
 ;       _Memcpy
 ;       _Memset
+;
+;   Please don't forget to put the
+;   label at end of file
+;
+;   Author: Jaggernaut
+;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;;; heap code start

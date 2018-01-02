@@ -9,62 +9,48 @@
 ;   Please don't forget to put the 
 ;   heap label at end of file
 ;
-;   Only use:
+;   Usable functions:
 ;       _Malloc
 ;       _Free
-;       __InitializeAllocator (once)
+;       _Realloc
+;       _Calloc
+;       _Memcpy
+;       _Memset
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;;; heap code start
 
-; This MUST be called for heap to work
-; It only needs to be called once
-; Initialize allocator
-; Set ____heap_total_available
-__InitializeAllocator:
-    TEST [____allocator_initialized], [____allocator_initialized]
-    Jnz ___InitializeAllocator_done
-    MOV [____allocator_initialized], 1
-    MOV A, 0xF000   ; last address heap can try to occupy
-    SUB A, heap
-    MOV [____heap_total_available], A
-___InitializeAllocator_done:
-    RET
-____heap_total_available: DW 0  ; This data is needed for the heap
-____heap_size: DW 0             ; It will not work if removed
-____allocator_initialized: DW 0 ; Make sure a user cannot run this multiple times
-;__InitializeAllocator end
-
-; Malloc(void *ptr, int size)
+; A = Malloc(int size)
 ; usage: 
 ;
-;   PUSH ptr        ; Push memory addr of pointer 
 ;   PUSH [size]     ; Push size to allocate
-;   CALL _Malloc    ; [[ptr]] now points to first address of allocated memory
-;                   ; You cannot use [[ptr]] directly so you must move it to a register first
+;   CALL _Malloc    ; A now points to first address of allocated memory
 ;   
 ;   PUSH pointer
 ;   PUSH 1
 ;   CALL _Malloc
 ;
-;   MOV A, [pointer]
+;   TEST A, A
+;   JZ failure
+;
 ;   MOV [A], 5
 ;
 ;   Currently if you go over the heap limit things will just sort of not allocate
-;   Does not change any registers
+;   Sets A register to the new 
 _Malloc:
     PUSH BP
     MOV BP, SP
-    PUSH A
     PUSH B
     PUSH C
     PUSH D
     PUSH X
     PUSH Y
 
-    MOV D, [BP+2]   ; A is the size we want
+    CALL __InitializeAllocator
+
+    MOV D, [BP+2]   ; D is the size we want
     TEST D,D
-    JZ ___Malloc_search_not_found      ; Don't waste time malloc(ptr,0)
+    JZ ___Malloc_search_not_found      ; Don't waste time malloc(ptr,0)         ;;; this could be changed to make a pointer that's distinctly set to [0]?
 
     ADD D, 2        ; We need to have add room for the control word and the range word
 
@@ -78,19 +64,15 @@ _Malloc:
     JC ___Malloc_search_not_found      ; Fail if taking up too much memory
 
     MOV X, heap     ; X is the heap pointer
-    MOV Y, [BP+3]   ; Y is the ptr
 
 ___Malloc_search_loop:
-    MOV B, [X+1]      ; Get range word at X+1
-    ;AND B, 0xFFFF   ; get the amount of allocated space in current address and move to the next one
-
     TEST [X], [X]  ; if X address is allocated, move on to the next available address
-    JNZ ______Malloc_search_loop_continue
+    JNZ ___Malloc_search_loop_continue
 
     MOV A, X
     CALL __CombineEmptyBlocks
 
-    MOV B, [X+1]    ; Use out possible newly available
+    MOV B, [X+1]    ; Get our available space this block
 
     TEST B, B       ; if size hasn't been set, we're good to go
     JZ ___Malloc_search_found_size_zero
@@ -100,32 +82,42 @@ ___Malloc_search_loop:
 
     ADD X, B
 
-    JMP ______Malloc_search_loop_continue
+    JMP ___Malloc_search_loop_continue
 
-______Malloc_search_loop_continue:
-    ADD X, B        ; increment by range word
+___Malloc_search_loop_continue:
+    ADD X, [X+1]        ; increment by range word
     JMP ___Malloc_search_loop
 
 ___Malloc_search_found_size_zero:
     ADD [____heap_size], D              ; ADD new block our heap size
 
+    MOV A, X
+    MOV [A], 0                      ; Make sure the next control word
+    MOV [A+1], 0                    ; and range word are 0
+
     JMP ___Malloc_search_found
 ___Malloc_search_found_existing:
     SUB B, D                        ; Remove our current size from the existing free block
+    CMP B, 3                        ; If there's less than 3 blocks left, take them
+    JGE ___Malloc_search_found_existing_skip
+    ADD D, B
+___Malloc_search_found_existing_skip:
     MOV A, X                        ; Copy address of current control word
     ADD A, D                        ; Mov current size forward to create a new block control word
-    MOV [A], B
+    TEST [A], [A]
+    JNZ ___Malloc_search_found      ; If block allocated, do not overwrite
+    MOV [A+1], B                    ; If not allocated, set the new space available
 
 ___Malloc_search_found:
     MOV [X+1], D                    ; Set the range word
     MOV [X], 1                      ; Set the control word
     ADD X,2                         ; Do not send back the allocator control word or the range word
-    MOV [Y], X                      ; Send back the allocated memory address
+    MOV A, X                      ; Send back the allocated memory address
 
     JMP ___Malloc_done
 
 ___Malloc_search_not_found:
-    MOV [Y], 0      ; We could not alloc, sad day
+    MOV A, 0      ; We could not alloc, sad day
 
 ___Malloc_done:
     POP Y
@@ -133,60 +125,141 @@ ___Malloc_done:
     POP D
     POP C
     POP B
-    POP A
     POP BP
-    RET 2   ; we pushed 2 things to call
+    RET 1   ; we pushed 1 thing to call
 ;_Malloc end
 
 ; free(void *ptr)
 ; usage:
 ;
-;   PUSH pointer    ; Push address of pointer
-;   CALL _Free      ; If successful [pointer] will now be zero
+;   MOV A, [ptr]    ; Push pointer
+;   CALL _Free      ; If successful A will now be zero
 ;                   ; If you tried to free something outside of the heap
 ;                   ; It will remain as it was
+;   TEST A, A
+;   JZ failure
 ;
 ; Does not change any registers
 _Free:
     PUSH BP
     MOV BP, SP
-    PUSH A
     PUSH B
     PUSH C
     PUSH Y
 
-    MOV Y, [BP+2]   ; [Y] is ptr
-    MOV X, [Y]      ; X is the location Y is pointing at
+    CALL __InitializeAllocator
 
-    TEST X,X
-    JZ ___Free_done    ; if X is 0 we don't need to do anything
+    MOV Y, A            ; Y is ptr
+    ;MOV X, [Y]         ; X is the location Y is pointing at
+    SUB Y, 2
 
-    CMP X, heap    ; if X is less than the heap starting point, this is not ours
-    JLE ___Free_done
+    CMP Y, heap    ; if Y is less than the heap starting point, this is not ours
+    JC ___Free_done
 
     MOV C, [____heap_size]
     ADD C, heap     ; add heap address and ____heap_size to get to the end of the heap
-    CMP C,X        ; if X is greater than the heap ending point, this is not ours
+    CMP C,Y        ; if Y is greater than the heap ending point, this is not ours
     JC  ___Free_done
     
-    MOV [X-2], 0        ; Unset the control word
-
-    MOV A, [X]          ; Set the data in this block
-    MOV B, 0            ; Fill it with zeros, except for the control word
-    MOV C, [X-1]        ; Go as far as the range specified in range word - 2
-    SUB C, 2
-    CALL __Memset
-
-    MOV [Y], 0      ; Set pointer to nil
+    MOV [Y], 0        ; Unset the control word
+    MOV A, 0            ; Set pointer to nil
 
 ___Free_done:
     POP Y
     POP C
     POP B
-    POP A
+    POP BP
+    RET
+;_Free end
+
+; A = realloc (void *ptr, int new_size)
+;
+;   MOV A, [ptr]        ; Push address of existing pointer
+;   PUSH [new_size]     ; Push new size you want
+;   CALL _Realloc
+;
+;   TEST A, A           ; if [A]  is zero, realloc has failed
+;   JZ  failure         ; pointer is freed
+_Realloc:
+    PUSH BP
+    MOV BP, SP
+    PUSH B
+    PUSH C
+
+    CALL __InitializeAllocator
+
+    MOV B, A        ; B is old pointer (at data section)
+
+    ; alloc
+    PUSH [BP+2]     ; alloc a new block of new_size
+    CALL _Malloc    ; this puts the new pointer in A
+
+    ; memcpy
+                    ; A is already new pointer
+                    ; B is already old pointer
+    MOV C, [B-1]    ; Get the old pointer's range word
+    CMP C, [A-1]    ; Check if old size is larger than new size
+    JL ___Realloc_old_smaller
+    MOV C, [A-1]    ; old size is currently in C, if new size is bigger use old size
+___Realloc_old_smaller:
+    SUB C, 2        ; account for allocated/range words
+    CALL _Memcpy
+
+    MOV C, A        ; C is the new pointer
+    ; free
+    MOV A, B        ; Free the old pointer
+    CALL _Free
+
+    MOV A,C         ; Return new pointer in A
+
+    POP C
+    POP B
     POP BP
     RET 1
-;_Free end
+;_Realloc end
+
+; A = Calloc(int size)
+; usage:
+;
+;   PUSH [size]     ; Push size to allocate
+;   CALL _Calloc    ; A now points to first address of allocated memory
+;
+;   PUSH pointer
+;   PUSH 1
+;   CALL _Calloc
+;
+;   TEST A, A
+;   JZ failure
+;
+;   TEST [A], [A]   ; the block will always be zero'd out
+;   JNZ failure
+;
+;   MOV [A], 5
+;
+_Calloc:
+    PUSH BP
+    MOV BP, SP
+    PUSH B
+    PUSH C
+
+    CALL __InitializeAllocator
+
+    MOV C, [BP+2]   ; c is the size of our block
+
+    PUSH C     ; push the size again for malloc
+    CALL _Malloc
+
+                    ; A is new pointer
+    MOV B, 0        ; B is zero
+                    ; C is our size
+    CALL _Memset    ; Zero out the new block
+
+    POP C
+    POP B
+    POP BP
+    RET 1
+;_Calloc end
+
 
 ; Combines empty blocks for found during malloc
 __CombineEmptyBlocks:
@@ -194,9 +267,10 @@ __CombineEmptyBlocks:
     PUSH D
 
     MOV C, A
+    ADD C, [A+1]                ; we know current block is available, so move to next one
 
 ___CombineEmptyBlocks_loop:
-    TEST [C], [C]        ; If the current control block is allocated, stop if so
+    TEST [C], [C]               ; If the current control block is allocated, stop if so
     JNZ ___CombineEmptyBlocks_done
 
     TEST [C+1], [C+1]           ; Check if the current range word is zero
@@ -204,7 +278,6 @@ ___CombineEmptyBlocks_loop:
 
     MOV D, C                    ; Hold on to current control word
     ADD D, [C+1]                ; Get to next control word
-    MOV [C], 0                    ; Clear this control word
 
     ADD [A+1], [C+1]            ; Current block is free to add it's size onto A
 
@@ -222,6 +295,27 @@ ___CombineEmptyBlocks_done:     ; of the heap
     RET
 ;__CombineEmptyBlocks end
 
+; This MUST be called for heap to work
+; All functions will attempt to call it to make sure
+; It only needs to be called once
+; Initialize allocator
+; Set ____heap_total_available
+__InitializeAllocator:
+    PUSH A
+    TEST [____allocator_initialized], [____allocator_initialized]
+    Jnz ___InitializeAllocator_done
+    MOV [____allocator_initialized], 1
+    MOV A, 0xF000   ; last address heap can try to occupy
+    SUB A, heap
+    MOV [____heap_total_available], A
+___InitializeAllocator_done:
+    POP A
+    RET
+____heap_total_available: DW 0  ; This data is needed for the heap
+____heap_size: DW 0             ; It will not work if removed
+____allocator_initialized: DW 0 ; Make sure a user cannot run this multiple times
+;__InitializeAllocator end
+
 ; void * memset ( void * ptr, int value, size_t num );
 ;
 ;   MOV A, dest
@@ -229,7 +323,7 @@ ___CombineEmptyBlocks_done:     ; of the heap
 ;   MOV B [size]
 ;   CALL __Memset
 ;
-__Memset:
+_Memset:
     PUSH A
     PUSH B
     PUSH C
@@ -245,7 +339,32 @@ ___memset_loop:
     POP B
     POP A
     RET
-;__Memset end
+;_Memset end
+
+; void * memcpy ( void * destination, const void * source, size_t num );
+;
+;   MOV A, dest
+;   MOV B, source
+;   MOVE B [size]
+;
+_Memcpy:
+    PUSH A
+    PUSH B
+    PUSH C
+
+    ADD C, A
+___memcpy_loop:
+    MOV [A], [B]
+    ADD B, 1
+    ADD A, 1
+    CMP A, C
+    JL ___memcpy_loop
+
+    POP C
+    POP B
+    POP A
+    RET
+;_Memcpy end
 
 ;;;;; heap code end
 

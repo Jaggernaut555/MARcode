@@ -301,15 +301,15 @@ ___CombineEmptyBlocks_done:     ; of the heap
 ; Initialize allocator
 ; Set ____heap_total_available
 __InitializeAllocator:
-    PUSH A
     TEST [____allocator_initialized], [____allocator_initialized]
-    Jnz ___InitializeAllocator_done
+    JNZ ___InitializeAllocator_done
+    PUSH A
     MOV [____allocator_initialized], 1
     MOV A, 0xF000   ; last address heap can try to occupy
     SUB A, heap
     MOV [____heap_total_available], A
-___InitializeAllocator_done:
     POP A
+___InitializeAllocator_done:
     RET
 ____heap_total_available: DW 0  ; This data is needed for the heap
 ____heap_size: DW 0             ; It will not work if removed

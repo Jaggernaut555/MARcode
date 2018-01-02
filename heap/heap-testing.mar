@@ -2,13 +2,16 @@
 ;
 ; Press 1,2,3,4 to malloc each pointer
 ; (the key function has logic to stop you from mallocing
-; the same one if it is not free)
+; a used pointer)
 ;
 ;
 ; Press q,w,e,r to free each pointer
-; (the key function has logic to stop you from freeing a free pointer)
 ;
 ; Press a,s,d,f to realloc each pointer
+;
+; press z,x,c,v to calloc each pointer
+; (the key function has logic to stop you from callocing
+; a used pointer)
 ;
 ; Press ESC to show the heap size
 ;
@@ -301,33 +304,21 @@ HandleKeys_done:
 
         JMP HandleKeys_next
     if_q:
-        TEST [pointer_one], [pointer_one]
-        JZ HandleKeys_next
-
         MOV A, [pointer_one]
         CALL _PrintFree
         MOV [pointer_one], A
         JMP HandleKeys_next
     if_w:
-        TEST [pointer_two], [pointer_two]
-        JZ HandleKeys_next
-
         MOV A, [pointer_two]
         CALL _PrintFree
         MOV [pointer_two], A
         JMP HandleKeys_next
     if_e:
-        TEST [pointer_three], [pointer_three]
-        JZ HandleKeys_next
-
         MOV A, [pointer_three]
         CALL _PrintFree
         MOV [pointer_three], A
         JMP HandleKeys_next
     if_r:
-        TEST [pointer_four], [pointer_four]
-        JZ HandleKeys_next
-
         MOV A, [pointer_four]
         CALL _PrintFree
         MOV [pointer_four], A

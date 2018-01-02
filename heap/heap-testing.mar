@@ -178,7 +178,6 @@ _Sleep:
 run_once:
     TEST [ran_once], [ran_once]
     JNZ main
-    CALL _RunOnce
 
     MOV A, 0
     HWI COM_PORT_HW
@@ -195,26 +194,14 @@ run_once:
 
     MOV A, 0
     HWI HOLOGRAM_HW
-    BRK
+    
+    MOV [ran_once], 1
 
 main:
     CALL _KeyboardRead
 
     CALL _HandleKeys
     BRK
-
-good:
-    MOV A, 1
-    MOV B, 1
-    HWI HOLOGRAM_HW
-    BRK
-
-bad:
-    MOV A, 1
-    MOV B, 2
-    HWI HOLOGRAM_HW
-    BRK
-
 
 _HandleKeys:
     AND [key], [key]
@@ -1109,6 +1096,57 @@ WriteConsoleX_fail:
 
 ;;;;; heap code start
 
+; void * memset ( void * ptr, int value, size_t num );
+;
+;   MOV A, dest
+;   MOV B [value]
+;   MOV B [size]
+;   CALL __Memset
+;
+_Memset:
+    PUSH A
+    PUSH B
+    PUSH C
+
+    ADD C, A
+___memset_loop:
+    MOV [A], B
+    ADD A, 1
+    CMP A, C
+    JL ___memset_loop
+
+    POP C
+    POP B
+    POP A
+    RET
+;_Memset end
+
+; void * memcpy ( void * destination, const void * source, size_t num );
+;
+;   MOV A, dest
+;   MOV B, source
+;   MOVE B [size]
+;   CALL _Memcpy
+;
+_Memcpy:
+    PUSH A
+    PUSH B
+    PUSH C
+
+    ADD C, A
+___memcpy_loop:
+    MOV [A], [B]
+    ADD B, 1
+    ADD A, 1
+    CMP A, C
+    JL ___memcpy_loop
+
+    POP C
+    POP B
+    POP A
+    RET
+;_Memcpy end
+
 ; A = Malloc(int size)
 ; usage: 
 ;
@@ -1390,80 +1428,22 @@ ___CombineEmptyBlocks_done:     ; of the heap
 ; Initialize allocator
 ; Set ____heap_total_available
 __InitializeAllocator:
-    PUSH A
     TEST [____allocator_initialized], [____allocator_initialized]
-    Jnz ___InitializeAllocator_done
+    JNZ ___InitializeAllocator_done
+    PUSH A
     MOV [____allocator_initialized], 1
     MOV A, 0xF000   ; last address heap can try to occupy
     SUB A, heap
     MOV [____heap_total_available], A
-___InitializeAllocator_done:
     POP A
+___InitializeAllocator_done:
     RET
 ____heap_total_available: DW 0  ; This data is needed for the heap
 ____heap_size: DW 0             ; It will not work if removed
 ____allocator_initialized: DW 0 ; Make sure a user cannot run this multiple times
 ;__InitializeAllocator end
 
-; void * memset ( void * ptr, int value, size_t num );
-;
-;   MOV A, dest
-;   MOV B [value]
-;   MOV B [size]
-;   CALL __Memset
-;
-_Memset:
-    PUSH A
-    PUSH B
-    PUSH C
-
-    ADD C, A
-___memset_loop:
-    MOV [A], B
-    ADD A, 1
-    CMP A, C
-    JL ___memset_loop
-
-    POP C
-    POP B
-    POP A
-    RET
-;_Memset end
-
-; void * memcpy ( void * destination, const void * source, size_t num );
-;
-;   MOV A, dest
-;   MOV B, source
-;   MOVE B [size]
-;
-_Memcpy:
-    PUSH A
-    PUSH B
-    PUSH C
-
-    ADD C, A
-___memcpy_loop:
-    MOV [A], [B]
-    ADD B, 1
-    ADD A, 1
-    CMP A, C
-    JL ___memcpy_loop
-
-    POP C
-    POP B
-    POP A
-    RET
-;_Memcpy end
-
 ;;;;; heap code end
-
-; Funcntions to be run once at initialization
-_RunOnce:
-    CALL __InitializeAllocator
-
-    MOV [ran_once], TRUE
-    RET
-;_RunOnce end
 
 .data
 resume_vect: DW 0x0000

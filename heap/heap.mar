@@ -20,6 +20,57 @@
 
 ;;;;; heap code start
 
+; void * memset ( void * ptr, int value, size_t num );
+;
+;   MOV A, dest
+;   MOV B [value]
+;   MOV B [size]
+;   CALL __Memset
+;
+_Memset:
+    PUSH A
+    PUSH B
+    PUSH C
+
+    ADD C, A
+___memset_loop:
+    MOV [A], B
+    ADD A, 1
+    CMP A, C
+    JL ___memset_loop
+
+    POP C
+    POP B
+    POP A
+    RET
+;_Memset end
+
+; void * memcpy ( void * destination, const void * source, size_t num );
+;
+;   MOV A, dest
+;   MOV B, source
+;   MOVE B [size]
+;   CALL _Memcpy
+;
+_Memcpy:
+    PUSH A
+    PUSH B
+    PUSH C
+
+    ADD C, A
+___memcpy_loop:
+    MOV [A], [B]
+    ADD B, 1
+    ADD A, 1
+    CMP A, C
+    JL ___memcpy_loop
+
+    POP C
+    POP B
+    POP A
+    RET
+;_Memcpy end
+
 ; A = Malloc(int size)
 ; usage: 
 ;
@@ -315,56 +366,6 @@ ____heap_total_available: DW 0  ; This data is needed for the heap
 ____heap_size: DW 0             ; It will not work if removed
 ____allocator_initialized: DW 0 ; Make sure a user cannot run this multiple times
 ;__InitializeAllocator end
-
-; void * memset ( void * ptr, int value, size_t num );
-;
-;   MOV A, dest
-;   MOV B [value]
-;   MOV B [size]
-;   CALL __Memset
-;
-_Memset:
-    PUSH A
-    PUSH B
-    PUSH C
-
-    ADD C, A
-___memset_loop:
-    MOV [A], B
-    ADD A, 1
-    CMP A, C
-    JL ___memset_loop
-
-    POP C
-    POP B
-    POP A
-    RET
-;_Memset end
-
-; void * memcpy ( void * destination, const void * source, size_t num );
-;
-;   MOV A, dest
-;   MOV B, source
-;   MOVE B [size]
-;
-_Memcpy:
-    PUSH A
-    PUSH B
-    PUSH C
-
-    ADD C, A
-___memcpy_loop:
-    MOV [A], [B]
-    ADD B, 1
-    ADD A, 1
-    CMP A, C
-    JL ___memcpy_loop
-
-    POP C
-    POP B
-    POP A
-    RET
-;_Memcpy end
 
 ;;;;; heap code end
 

@@ -22,12 +22,17 @@
 ; Initialize allocator
 ; Set ____heap_total_available
 __InitializeAllocator:
+    TEST [____allocator_initialized], [____allocator_initialized]
+    Jnz ___InitializeAllocator_done
+    MOV [____allocator_initialized], 1
     MOV A, 0xF000   ; last address heap can try to occupy
     SUB A, heap
     MOV [____heap_total_available], A
+___InitializeAllocator_done:
     RET
 ____heap_total_available: DW 0  ; This data is needed for the heap
 ____heap_size: DW 0             ; It will not work if removed
+____allocator_initialized: DW 0 ; Make sure a user cannot run this multiple times
 ;__InitializeAllocator end
 
 ; Malloc(void *ptr, int size)

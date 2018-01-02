@@ -194,7 +194,7 @@ run_once:
 
     MOV A, 0
     HWI HOLOGRAM_HW
-    
+
     MOV [ran_once], 1
 
 main:
@@ -1096,6 +1096,11 @@ WriteConsoleX_fail:
 
 ;;;;; heap code start
 
+; Change this to say where you want the heap to
+; limit as it's last usable address.
+; It must be further than your heap label
+HEAP_END_ADDR equ 0xF000
+
 ; void * memset ( void * ptr, int value, size_t num );
 ;
 ;   MOV A, dest
@@ -1431,10 +1436,11 @@ __InitializeAllocator:
     TEST [____allocator_initialized], [____allocator_initialized]
     JNZ ___InitializeAllocator_done
     PUSH A
-    MOV [____allocator_initialized], 1
-    MOV A, 0xF000   ; last address heap can try to occupy
+    MOV A, HEAP_END_ADDR   ; last address heap can try to occupy
     SUB A, heap
+    JC __InvalidHeap
     MOV [____heap_total_available], A
+    MOV [____allocator_initialized], 1
     POP A
 ___InitializeAllocator_done:
     RET
@@ -1442,6 +1448,22 @@ ____heap_total_available: DW 0  ; This data is needed for the heap
 ____heap_size: DW 0             ; It will not work if removed
 ____allocator_initialized: DW 0 ; Make sure a user cannot run this multiple times
 ;__InitializeAllocator end
+
+__InvalidHeap:
+    MOV A, 2
+    MOV X, ____InvalidHeap_holo_text
+    HWI 0x0009
+    MOV A, 3
+    MOV X, ____InvalidHeap_text
+    HWI 0x000D
+    ADD X, 8
+    HWI 0x000D
+    ADD X, 8
+    HWI 0x000D
+    BRK
+____InvalidHeap_text: DW "\nInvalid heap end", 7 DUP(0)
+____InvalidHeap_holo_text: DW "Heap ERR",0
+;__InvalidHeap end
 
 ;;;;; heap code end
 

@@ -14,6 +14,9 @@
 ;       _DtoString
 ;       _XtoString
 ;
+;   This printf works with %s, %d, %u, and %x
+;
+;
 ;   BUG: Currently there is a bug where if you do not post a newline between every 40
 ;   characters per game tick, none of the characters will show up in the console.
 ;   This must be addressed by the user in their format strings.

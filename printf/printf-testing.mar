@@ -1,0 +1,485 @@
+LEGS_HW equ 0x0001
+LASER_HW equ 0x0002
+LIDAR_HW equ 0x0003
+KB_HW equ 0x0004
+DRILL_HW equ 0x0005
+INV_HW equ 0x0006
+RNG_HW equ 0x0007
+CLOCK_HW equ 0x0008
+HOLOGRAM_HW equ 0x0009
+BATTERY_HW equ 0x000A
+FLOPPY_HW equ 0x000B
+RADIO_HW equ 0x000C
+COM_PORT_HW equ 0x000D
+
+COM_PORT_SELF equ 3
+
+TRUE equ 1
+FALSE equ 0
+
+NULL equ 0
+
+BUFFER_LIMIT equ 0x200
+
+KEY_A equ 0x41
+KEY_B equ 0x42
+KEY_C equ 0x43
+KEY_D equ 0x44
+KEY_E equ 0x45
+KEY_F equ 0x46
+KEY_G equ 0x47
+KEY_H equ 0x48
+KEY_I equ 0x49
+KEY_J equ 0x4A
+KEY_K equ 0x4B
+KEY_L equ 0x4C
+KEY_M equ 0x4D
+KEY_N equ 0x4E
+KEY_O equ 0x4F
+KEY_P equ 0x50
+KEY_Q equ 0x51
+KEY_R equ 0x52
+KEY_S equ 0x53
+KEY_T equ 0x54
+KEY_U equ 0x55
+KEY_V equ 0x56
+KEY_W equ 0x57
+KEY_X equ 0x58
+KEY_Y equ 0x59
+KEY_Z equ 0x5A
+
+KEY_0 equ 0x30
+KEY_1 equ 0x31
+KEY_2 equ 0x32
+KEY_3 equ 0x33
+KEY_4 equ 0x34
+KEY_5 equ 0x35
+KEY_6 equ 0x36
+KEY_7 equ 0x37
+KEY_8 equ 0x38
+KEY_9 equ 0x39
+
+KEY_TILDE equ 0xc0
+KEY_MINUS equ 0xbd
+KEY_PLUS equ 0xbb
+KEY_COMMA equ 0xbc
+KEY_PERIOD equ 0xbe
+KEY_SLASH equ 0xbf
+KEY_BACKSLASH equ 0xdc
+KEY_COLON equ 0xba
+KEY_QUOTE equ 0xde
+KEY_LEFT_BRACKET equ 0xdb
+KEY_RIGHT_BRACKET equ 0xdd
+
+KEY_TAB equ 0x9
+KEY_CTRL equ 0x11
+KEY_ALT equ 0x12
+KEY_ENTER equ 0xd
+KEY_SHIFT equ 0x10
+KEY_ESC equ 0x1b
+KEY_BS equ 0x8
+KEY_CAPSLOCK equ 0x14
+KEY_SPACE equ 0x20
+KEY_MENU equ 0x5d
+KEY_WIN equ 0x5b
+KEY_PAUSE equ 0x13
+KEY_SCROLLLOCK equ 0x91
+KEY_INSERT equ 0x2d
+KEY_HOME equ 0x24
+KEY_PAGE_UP equ 0x21
+KEY_PAGE_DOWN equ 0x22
+KEY_END equ 0x23
+KEY_DELETE equ 0x2e
+
+KEY_UP equ 0x26
+KEY_DOWN equ 0x28
+KEY_LEFT equ 0x25
+KEY_RIGHT equ 0x27
+
+KEY_NUMPAD_0 equ 0x60
+KEY_NUMPAD_1 equ 0x61
+KEY_NUMPAD_2 equ 0x62
+KEY_NUMPAD_3 equ 0x63
+KEY_NUMPAD_4 equ 0x64
+KEY_NUMPAD_5 equ 0x65
+KEY_NUMPAD_6 equ 0x66
+KEY_NUMPAD_7 equ 0x67
+KEY_NUMPAD_8 equ 0x68
+KEY_NUMPAD_9 equ 0x69
+KEY_NUMPAD_PERIOD equ 0x6e
+KEY_NUMPAD_SLASH equ 0x6f
+KEY_NUMPAD_STAR equ 0x6a
+KEY_NUMPAD_PLUS equ 0x6b
+KEY_NUMPAD_MINUS equ 0x6d
+KEY_NUMLOCK equ 0x90
+
+KEY_F1 equ 0x70
+KEY_F2 equ 0x71
+KEY_F3 equ 0x72
+KEY_F4 equ 0x73
+KEY_F5 equ 0x74
+KEY_F6 equ 0x75
+KEY_F7 equ 0x76
+KEY_F8 equ 0x77
+KEY_F9 equ 0x78
+KEY_F10 equ 0x79
+KEY_F11 equ 0x7a
+KEY_F12 equ 0x7b
+
+.text
+    MOV SP, 0xFFFF
+    MOV BP, 0xFFFF
+    CMP [counter], 1
+    JGE done
+
+    MOV A, 4
+    HWI COM_PORT_HW
+done:
+
+    MOV A, 0
+    HWI COM_PORT_HW
+
+    PUSH test_string
+    PUSH [counter_three]
+    PUSH [counter_two]
+    PUSH [counter]
+    PUSH fmt_str
+    CALL _Printf
+    
+    ADD [counter], 1
+    ADD [counter_two], 1
+    SUB [counter_three], 1
+    BRK
+
+fmt_str: DW "Text %u %x %%d %d %s\n%",0
+;                 escaped^         ^ignored
+counter: DW 0
+counter_two: DW 0
+counter_three: DW 0
+
+test_string: DW "test",0
+
+
+
+;;;;;;;; printf code starts
+
+; A = printf(char* fmtstring, arg...)
+; usage:
+;
+;   PUSH 0x15           ; hex value '%x'
+;   PUSH [number]       ; unsigned integer '%u'
+;   PUSH C              ; signed integer '%d'
+;   PUSH str            ; null terminated string '%s'
+;   PUSH fmt_str        ; Format string (in this example) "%s %d %u %x\n"
+;   CALL _Printf        ; Will simply print out the arguments separated by spaces
+;                       ; Ending with a newline
+;
+;
+; NOTES:
+;   -To print a '%' sign you need to use two, "%%"
+;   -This function does not adhere to the limit of 40 message on the COM PORT
+;   per game tick. Anything after 40*8 characters will not get printed unless
+;   this is fixed by the user. I have noted the recommended spot to adjust in
+;   the __Printf_print function
+;
+;
+_Printf:
+    PUSH BP ; [BP+0]
+    MOV BP, SP
+    PUSH B  ; -1
+    PUSH C  ; -2
+    PUSH D  ; -3
+    PUSH X  ; -4
+    PUSH Y  ; -5
+
+    MOV Y, [BP+2]           ; Y is addr
+
+    MOV X, ____printf_buffer    ; X is where we will need to print
+    MOV B, 0                ; B will count from 8 to determine when we need to print
+
+; Scan format string for '%' followed by valid character
+; When found valid, pop result and get it to fit
+    MOV C, 0
+___Printf_scan_loop:
+    CALL __Printf_print
+
+    TEST [Y], [Y]       ; [Y]&[Y] = 0 only if [Y]=0
+    JZ ___Printf_loop_done ; End the print
+
+    CMP [Y], 0x25       ; 0x25 = '%'
+    JZ ___Printf_scan_found
+
+    MOV [X], [Y]        ; Add any other character
+    ADD Y, 1            ; Move to next character in fmt string
+    ADD B, 1
+    ADD X, 1            ; Move to next character in buffer
+    JMP ___Printf_scan_loop
+
+___Printf_scan_found:
+    ; [Y] is currently '%'
+    ADD Y,2
+    ; [Y] is the thing we want to check for 'i' 'x' 's' or w/e
+
+    TEST [Y-1], [Y-1]       ; if the % is followed by a null, just end
+    JZ ___Printf_loop_done
+
+    CMP [Y-1], 0x25     ; if it is another % escape it
+    JZ ___Printf_found_percent
+
+    ADD C, 1    ; increase which we want to get from the stack
+    MOV D, 2
+    ADD D, C
+    ADD D, BP     ; get [BP+2+C]
+    MOV D, [D]
+                    ; D is now The next argument
+
+    ; check [Y-1] here
+    CMP [Y-1], 0x75   ; 'u'
+    JZ ___Printf_found_u
+    CMP [Y-1], 0x64   ; 'd'
+    JZ ___Printf_found_d
+    CMP [Y-1], 0x73   ; 's'
+    JZ ___Printf_found_s
+    CMP [Y-1], 0x78   ; 'x'
+    JZ ___Printf_found_x
+
+
+    ; If we found nothing skip the '%a' entirely
+    JMP ___Printf_scan_loop
+
+    ; [Y] is now past the '%x'
+
+___Printf_found_percent:
+    MOV [X], 0x25    ; Add a '%'
+    ADD B, 1
+    ADD X, 1
+    JMP ___Printf_scan_loop
+___Printf_found_u:
+    PUSH ____itoa_result
+    PUSH D
+    CALL _UtoString
+    MOV D, ____itoa_result
+    JMP ___Printf_insert_loop
+___Printf_found_d:
+    PUSH ____itoa_result
+    PUSH D
+    CALL _DtoString
+    MOV D, ____itoa_result
+    JMP ___Printf_insert_loop    
+___Printf_found_x:
+    PUSH ____itoa_result
+    PUSH D
+    CALL _XtoString
+    MOV D, ____itoa_result
+    JMP ___Printf_insert_loop
+___Printf_found_s:      ; S is already in a string
+                        ; so we can just print it
+
+___Printf_insert_loop:
+    CALL __Printf_print
+
+    TEST [D],[D]
+    JZ ___Printf_scan_loop     ; when this new string ends go back to regular loop
+
+    MOV [X], [D]
+
+    ADD D, 1                ; Keep moving
+    ADD B, 1                ; Keep tracking to the end of buffer
+    ADD X, 1                ; Keep moving in the buffer
+    JMP ___Printf_insert_loop
+
+___Printf_loop_done:
+    CMP B, 8                ; If the buffer is empty
+    JZ ___Printf_stack_fix     ; we can skip this step
+
+___Printf_zero_loop:           ; The buffer needs to 
+    CMP B, 8                ; be padded to eight
+    JZ ___Printf_zero_loop_done; characters with nulls
+    MOV [X], 0
+    ADD X, 1
+    ADD B, 1
+    JMP ___Printf_zero_loop
+
+___Printf_zero_loop_done:
+    CALL __Printf_print
+
+___Printf_stack_fix:
+    ; Move the return address from [BP+1] to [BP+1+args] (args include fmt string)
+    ADD C, 1
+    MOV A, C        ; number of things we need to ignore on the stack
+    MOV B, BP
+    ADD B, 1
+    ADD B, C
+    MOV [B], [BP+1]     ; Move return address [BP+1] to [BP+1+args]
+
+___Printf_done:
+    POP Y       ; [BP-5]
+    POP X       ; [BP-4]
+    POP D       ; [BP-3]
+    POP C       ; [BP-2]
+    POP B       ; [BP-1]
+    POP BP      ; [BP-0]
+    ; Move SP up the stack A times
+    ADD SP, A
+    RET
+____printf_buffer: DW 8 DUP(0)
+____itoa_result: DW 8 DUP(0)
+;_Printf end
+
+; If you need to stop hitting the 40 message limit
+; by waiting for the next tick to keep printing
+; do it here. But all the registers need to be
+; kept intact.
+__Printf_print:
+    CMP B, 8
+    JNZ ___Printf_print_done
+    MOV X, ____printf_buffer
+    MOV A, 3
+    HWI 0x000D
+    MOV B, 0
+___Printf_print_done:
+    RET
+;__Printf_print end
+
+;   Convert an unsigned decimal number into a string
+;   
+;   UtoString(char *addr, uint number)
+;
+;   PUSH result_addr
+;   PUSH 5
+;   CALL _UtoString
+;
+;   result_addr must be a buffer large enough to fit the given number, 8 is always enough
+_UtoString:    
+    PUSH BP ; bp+0
+    MOV BP, SP
+    PUSH A
+    PUSH Y
+
+    MOV A, [BP+2]       ; number to be converted
+    PUSH 0
+
+___UtoString_loop:
+    MOV Y, 0
+    DIV 10
+    ADD Y, 0x30
+    PUSH Y
+    TEST A,A
+    JNZ ___UtoString_loop
+
+    MOV A, [BP+3]       ; address to store it
+___UtoString_store_result_loop:
+    POP Y
+    MOV [A], Y
+    ADD A, 1
+    TEST Y,Y
+    JNZ ___UtoString_store_result_loop
+
+    POP Y
+    POP A
+    POP BP
+    RET 2
+;_UtoString end
+
+;   Convert a signed decimal number into a string
+;   
+;   DtoString(char *addr, int number)
+;
+;   PUSH result_addr
+;   PUSH -5
+;   CALL _DtoString
+;
+;   result will be prefixed with '-' when negative
+;
+;   result_addr must be a buffer large enough to fit the given number, 8 is always enough
+_DtoString:
+    PUSH BP
+    MOV BP, SP
+    PUSH A
+    PUSH X
+
+    MOV X, [BP+3]   ; holder string
+    MOV A, [BP+2]   ; number to be converted
+
+    ; if neg add '-'
+    ; then NEG the argument
+    TEST A, A
+    JNS ___Printf_found_d_sign_done
+    CALL __Printf_print
+    NEG A               ; make number positive
+    MOV [X], 0x2d       ; Add in the '0'
+    ADD X, 1            ; increase string addr
+___Printf_found_d_sign_done:
+    PUSH X              ; push the string addr
+    PUSH A              ; push the number to be converted
+    CALL _UtoString
+
+    POP X
+    POP A
+    POP BP
+    RET 2
+
+;_DtoString end
+
+;   Convert a given number into a hex string
+;
+;   XtoString(char *addr, int number)
+;
+;   PUSH result_addr
+;   PUSH 0xFFF
+;   CALL _XtoString
+;
+;   The result is prefixed with '0x'
+;
+;   result_addr must be a buffer large enough to fit the given number, 8 is always enough
+_XtoString:
+    PUSH BP ; bp+0
+    MOV BP, SP
+    PUSH A
+    PUSH X
+
+    MOV X, [BP+2]       ; number to be converted
+    PUSH 0
+
+___XtoString_loop:
+    MOV A, X
+    AND A, 0x000F
+    SHR X, 4
+    CALL __XtoA
+    PUSH A
+    TEST X, X
+    JNZ ___XtoString_loop
+
+    MOV A, [BP+3]       ; address to store it
+
+    MOV [A], 0x30       ; prefix with
+    MOV [A+1], 0x78       ; '0x'
+    ADD A, 2
+
+___XtoString_store_result_loop:
+    POP X
+    MOV [A], X
+    ADD A, 1
+    TEST X,X
+    JNZ ___XtoString_store_result_loop
+
+    POP X
+    POP A
+    POP BP
+    RET 2
+;_XtoString end
+
+; Return Hex value of the right-most 4 bits as
+; a key code to be printed
+; Super lazy
+__XtoA:
+    AND A, 0xF  ; Get only the last number
+    ADD A, 0x30            ; If 0-9 add 0x30
+    CMP A, 0x3A
+    JL ___XtoA_done
+    ADD A, 0x7                        ; if 10-15 add 0x40
+___XtoA_done:
+    RET
+;_XtoA end
+
+;;;;;;;; printf code ends

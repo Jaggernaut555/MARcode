@@ -58,9 +58,6 @@ _Printf:
 
     MOV X, ____printf_buffer    ; X is where we will need to print
     MOV B, 0                ; B will count from 8 to determine when we need to print
-
-; Scan format string for '%' followed by valid character
-; When found valid, pop result and get it to fit
     MOV C, 0
 ___Printf_scan_loop:
     CALL __Printf_print
@@ -78,10 +75,7 @@ ___Printf_scan_loop:
     JMP ___Printf_scan_loop
 
 ___Printf_scan_found:
-    ; [Y] is currently '%'
     ADD Y,2
-    ; [Y] is the thing we want to check for 'i' 'x' 's' or w/e
-
     TEST [Y-1], [Y-1]       ; if the % is followed by a null, just end
     JZ ___Printf_loop_done
 
@@ -91,11 +85,9 @@ ___Printf_scan_found:
     ADD C, 1    ; increase which we want to get from the stack
     MOV D, 2
     ADD D, C
-    ADD D, BP     ; get [BP+2+C]
-    MOV D, [D]
-                    ; D is now The next argument
+    ADD D, BP   ; get [BP+2+C]
+    MOV D, [D]  ; D is now The next argument
 
-    ; check [Y-1] here
     CMP [Y-1], 0x75   ; 'u'
     JZ ___Printf_found_u
     CMP [Y-1], 0x64   ; 'd'
@@ -105,11 +97,8 @@ ___Printf_scan_found:
     CMP [Y-1], 0x78   ; 'x'
     JZ ___Printf_found_x
 
-
     ; If we found nothing skip the '%a' entirely
     JMP ___Printf_scan_loop
-
-    ; [Y] is now past the '%x'
 
 ___Printf_found_percent:
     MOV [X], 0x25    ; Add a '%'
@@ -203,7 +192,7 @@ ___Printf_print_done:
     RET
 ;__Printf_print end
 
-;   Convert an unsigned decimal number into a string
+;   Convert an unsigned decimal number into a null terminated string
 ;   
 ;   UtoString(char *addr, uint number)
 ;
@@ -243,7 +232,7 @@ ___UtoString_store_result_loop:
     RET 2
 ;_UtoString end
 
-;   Convert a signed decimal number into a string
+;   Convert a signed decimal number into a null terminated string
 ;   
 ;   DtoString(char *addr, int number)
 ;
@@ -283,7 +272,7 @@ ___Printf_found_d_sign_done:
 
 ;_DtoString end
 
-;   Convert a given number into a hex string
+;   Convert a given number into a null terminated string
 ;
 ;   XtoString(char *addr, int number)
 ;
@@ -332,7 +321,7 @@ ___XtoString_store_result_loop:
 ;_XtoString end
 
 ; Return Hex value of the right-most 4 bits as
-; a key code to be printed
+; a character code to be printed
 ; Super lazy
 __XtoA:
     AND A, 0xF  ; Get only the last number

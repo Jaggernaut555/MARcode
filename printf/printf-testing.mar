@@ -127,8 +127,6 @@ KEY_F11 equ 0x7a
 KEY_F12 equ 0x7b
 
 .text
-    MOV SP, 0xFFFF
-    MOV BP, 0xFFFF
     CMP [counter], 1
     JGE done
 
@@ -407,7 +405,6 @@ ___Printf_found_d_sign_done:
     POP A
     POP BP
     RET 2
-
 ;_DtoString end
 
 ;   Convert a given number into a null terminated string

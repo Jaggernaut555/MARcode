@@ -258,12 +258,11 @@ _DtoString:
     ; if neg add '-'
     ; then NEG the argument
     TEST A, A
-    JNS ___Printf_found_d_sign_done
-    CALL __Printf_print
+    JNS ___DtoString_done
     NEG A               ; make number positive
     MOV [X], 0x2d       ; Add in the '0'
     ADD X, 1            ; increase string addr
-___Printf_found_d_sign_done:
+___DtoString_done:
     PUSH X              ; push the string addr
     PUSH A              ; push the number to be converted
     CALL _UtoString
@@ -272,7 +271,6 @@ ___Printf_found_d_sign_done:
     POP A
     POP BP
     RET 2
-
 ;_DtoString end
 
 ;   Convert a given number into a null terminated string

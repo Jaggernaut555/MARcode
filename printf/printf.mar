@@ -60,7 +60,7 @@ _Printf:
 
     MOV Y, [BP+2]           ; Y is addr
 
-    MOV X, ____printf_buffer    ; X is where we will need to print
+    MOV X, ____Printf_buffer    ; X is where we will need to print
     MOV B, 0                ; B will count from 8 to determine when we need to print
     MOV C, 0
 ___Printf_scan_loop:
@@ -112,26 +112,26 @@ ___Printf_found_percent:
     ADD X, 1
     JMP ___Printf_scan_loop
 ___Printf_found_u:
-    PUSH ____itoa_result
+    PUSH ____Printf_itoa_result
     PUSH D
     CALL _UtoString
-    MOV D, ____itoa_result
+    MOV D, ____Printf_itoa_result
     JMP ___Printf_insert_loop
 ___Printf_found_d:
-    PUSH ____itoa_result
+    PUSH ____Printf_itoa_result
     PUSH D
     CALL _DtoString
-    MOV D, ____itoa_result
+    MOV D, ____Printf_itoa_result
     JMP ___Printf_insert_loop    
 ___Printf_found_x:
-    PUSH ____itoa_result
+    PUSH ____Printf_itoa_result
     PUSH D
     CALL _XtoString
-    MOV D, ____itoa_result
+    MOV D, ____Printf_itoa_result
     JMP ___Printf_insert_loop
 ___Printf_found_c:
-    MOV [____itoa_result], D
-    MOV D, ____itoa_result
+    MOV [____Printf_itoa_result], D
+    MOV D, ____Printf_itoa_result
     MOV [D+1], 0
     JMP ___Printf_insert_loop
 ___Printf_found_s:      ; S is already in a string
@@ -184,8 +184,8 @@ ___Printf_done:
     ; Move SP up the stack A times
     ADD SP, A
     RET
-____printf_buffer: DW 8 DUP(0)
-____itoa_result: DW 8 DUP(0)
+____Printf_buffer: DW 8 DUP(0)
+____Printf_itoa_result: DW 8 DUP(0)
 ;_Printf end
 
 ; If you need to stop hitting the 40 message limit
@@ -195,7 +195,7 @@ ____itoa_result: DW 8 DUP(0)
 __Printf_print:
     CMP B, 8
     JNZ ___Printf_print_done
-    MOV X, ____printf_buffer
+    MOV X, ____Printf_buffer
     MOV A, 3
     HWI 0x000D
     MOV B, 0

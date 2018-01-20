@@ -1,0 +1,94 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;   Here are some simple dumping functions.
+;
+;   REQUIRES 'printf.mar' CODE. I have not included the
+;   printf code in this file, but these functions use it
+;
+;   Copy and paste this whole file into your code
+;
+;   Usable functions:
+;       _RegisterDump
+;       _StackDump
+;       _MemoryDump
+;
+;   NOTE: There is a limit of 40 messages of 8 charcters each
+;   that can be printed on the console per game tick. After
+;   40 messages no more characters will be printed. This
+;   is most noticable if you are printing the stack.
+;   See the 'printf.mar' file for more on this issue.
+;
+;
+;   Author: Jaggernaut
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;; dump code starts
+
+; Dump all registers
+_RegisterDump:
+    PUSH SP ; +8
+    PUSH BP ; +7
+    PUSH Y  ; +6
+    PUSH X  ; +5
+    PUSH D  ; +4
+    PUSH C  ; +3
+    PUSH B  ; +2
+    PUSH A  ; +1
+    PUSH ____register_dump_text
+    CALL _Printf
+    RET
+____register_dump_text: DW "REGISTER DUMP\nA=%x\nB=%x\nC=%x\nD=%x\nX=%x\nY=%x\nBP=%x\nSP=%x\n",0
+;_RegisterDump end
+
+; Dump contents of the stack
+_StackDump:
+    PUSH BP ; BP+0
+    MOV BP, SP
+    ADD BP, 1   ; ignore BP+0
+
+    PUSH ____stack_dump_text
+    CALL _Printf
+
+___stack_dump_loop:
+    PUSH [BP]
+    PUSH BP
+    PUSH ____stack_dump_line
+    CALL _Printf
+    INC BP
+    TEST BP, BP
+    JNZ ___stack_dump_loop
+
+    POP BP
+    RET
+____stack_dump_text: DW "STACK DUMP\n",0
+____stack_dump_line: DW "ADDR:%x, DATA=%x\n",0
+;_StackDump end
+
+; Write all of RAM onto floppy
+_MemoryDump:
+    PUSH A
+    PUSH X
+    PUSH Y
+
+    MOV X, 0
+    MOV Y, 0
+    MOV A, 3
+___MemoryDump_loop:
+    HWI 0xb
+    ADD X, 1
+    ADD Y, 512
+    CMP X, 128
+    JNZ ___MemoryDump_loop
+
+    PUSH ____MemoryDump_text
+    CALL _Printf
+
+    POP Y
+    POP X
+    POP A
+    RET
+____MemoryDump_text: DW "MEMORY DUMP DONE\n",0
+;_MemoryDump end
+
+;;;;;;;; dump code ends

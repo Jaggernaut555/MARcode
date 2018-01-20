@@ -138,6 +138,7 @@ done:
     HWI COM_PORT_HW
 
     PUSH test_string
+    PUSH 0x57
     PUSH [counter_three]
     PUSH [counter_two]
     PUSH [counter]
@@ -149,8 +150,8 @@ done:
     SUB [counter_three], 1
     BRK
 
-fmt_str: DW "Text %u %x %%d %d %s\n%",0
-;                 escaped^         ^ignored
+fmt_str: DW "Text %u %x %%d %d %c %s\n%",0
+;                 escaped^            ^ignored
 counter: DW 0
 counter_two: DW 0
 counter_three: DW 0
@@ -232,6 +233,8 @@ ___Printf_scan_found:
     JZ ___Printf_found_s
     CMP [Y-1], 0x78   ; 'x'
     JZ ___Printf_found_x
+    CMP [Y-1], 0x63   ; 'c'
+    JZ ___Printf_found_c
 
     ; If we found nothing skip the '%a' entirely
     JMP ___Printf_scan_loop
@@ -258,6 +261,11 @@ ___Printf_found_x:
     PUSH D
     CALL _XtoString
     MOV D, ____itoa_result
+    JMP ___Printf_insert_loop
+___Printf_found_c:
+    MOV [____itoa_result], D
+    MOV D, ____itoa_result
+    MOV [D+1], 0
     JMP ___Printf_insert_loop
 ___Printf_found_s:      ; S is already in a string
                         ; so we can just print it

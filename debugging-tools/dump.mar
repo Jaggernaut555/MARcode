@@ -61,8 +61,8 @@ ___stack_dump_loop:
 
     POP BP
     RET
-____stack_dump_text: DW "STACK DUMP\n",0
-____stack_dump_line: DW "ADDR:%x, DATA=%x\n",0
+____stack_dump_text: DW "STACK DUMP\nADDR\tDATA\n",0
+____stack_dump_line: DW "%x:\t%x\n",0
 ;_StackDump end
 
 ; Write all of RAM onto floppy

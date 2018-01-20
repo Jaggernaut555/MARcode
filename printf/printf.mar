@@ -14,7 +14,7 @@
 ;       _DtoString
 ;       _XtoString
 ;
-;   This printf works with %s, %d, %u, and %x
+;   This printf works with %c, %s, %d, %u, and %x
 ;
 ;
 ;   BUG: Currently there is a bug where if you do not post a newline between every 40
@@ -34,8 +34,9 @@
 ;   PUSH 0x15           ; hex value '%x'
 ;   PUSH [number]       ; unsigned integer '%u'
 ;   PUSH C              ; signed integer '%d'
+;   PUSH 0x57           ; character '%x'
 ;   PUSH str            ; null terminated string '%s'
-;   PUSH fmt_str        ; Format string (in this example) "%s %d %u %x\n"
+;   PUSH fmt_str        ; Format string (in this example) "%s %c %d %u %x\n"
 ;   CALL _Printf        ; Will simply print out the arguments separated by spaces
 ;                       ; Ending with a newline
 ;

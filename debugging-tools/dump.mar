@@ -28,7 +28,9 @@
 
 ; Dump all registers
 _RegisterDump:
-    PUSH SP ; +8
+    PUSH A          ; [sp+1]
+    PUSH SP ; +8    ; [sp]
+    ADD [SP], 3   ; Skip the A push and the RET address
     PUSH BP ; +7
     PUSH Y  ; +6
     PUSH X  ; +5
@@ -38,6 +40,7 @@ _RegisterDump:
     PUSH A  ; +1
     PUSH ____register_dump_text
     CALL _Printf
+    POP A
     RET
 ____register_dump_text: DW "REGISTER DUMP\nA=%x\nB=%x\nC=%x\nD=%x\nX=%x\nY=%x\nBP=%x\nSP=%x\n",0
 ;_RegisterDump end
@@ -46,7 +49,8 @@ ____register_dump_text: DW "REGISTER DUMP\nA=%x\nB=%x\nC=%x\nD=%x\nX=%x\nY=%x\nB
 _StackDump:
     PUSH BP ; BP+0
     MOV BP, SP
-    ADD BP, 1   ; ignore BP+0
+    ADD BP, 2   ; ignore BP+0 and RET address
+    PUSH A
 
     PUSH ____stack_dump_text
     CALL _Printf
@@ -60,6 +64,7 @@ ___stack_dump_loop:
     TEST BP, BP
     JNZ ___stack_dump_loop
 
+    POP A
     POP BP
     RET
 ____stack_dump_text: DW "STACK DUMP\nADDR\tDATA\n",0
